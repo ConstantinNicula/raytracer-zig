@@ -87,7 +87,7 @@ pub const Point3 = Vec3;
 const assert = @import("std").debug.assert;
 const eps: f64 = 1e-6;
 
-fn assertEq(exp: Vec3, val: Vec3) void {
+pub fn assertEq(exp: Vec3, val: Vec3) void {
     assert(math.fabs(exp.x - val.x) < eps);
     assert(math.fabs(exp.y - val.y) < eps);
     assert(math.fabs(exp.z - val.z) < eps);
@@ -163,4 +163,10 @@ test "vector unit" {
     var res: Vec3 = Vec3.unit(v1);
     assert(math.fabs(1 - res.len()) < eps);
     assertEq(v1, res.smul(v1.len()));
+}
+
+test "sanity check" {
+    var p = Point3.zeros();
+    var v = Vec3.zeros();
+    assert(@TypeOf(p) == @TypeOf(v));
 }
