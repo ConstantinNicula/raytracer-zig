@@ -1,24 +1,34 @@
 const std = @import("std");
+const io = @import("std").io;
+
+const Vec3 = @import("vec.zig").Vec3;
+const color = @import("color.zig");
+const Color = color.Color;
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    // Image
+    const image_width: u32 = 256;
+    const image_height: u32 = 256;
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var buf = std.io.bufferedWriter(std.io.getStdOut().writer());
+    var stdout = buf.writer();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    try stdout.print("P3\n {} {}\n255\n", .{ image_width, image_height });
 
-    try bw.flush(); // don't forget to flush!
-}
+    var j: u32 = 0;
+    while (j < image_height) : (j += 1) {
+        std.debug.print("\rScanlines remaining: {} ", .{image_height - j});
+        var i: u32 = 0;
+        while (i < image_width) : (i += 1) {
+            const pixel_color = Color.init(
+                @as(f64, @floatFromInt(i)) / (image_width - 1),
+                @as(f64, @floatFromInt(j)) / (image_height - 1),
+                0,
+            );
+            try color.writeColor(stdout, pixel_color);
+        }
+    }
+    try buf.flush();
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+    std.debug.print("\rDone.                    \n", .{});
 }
