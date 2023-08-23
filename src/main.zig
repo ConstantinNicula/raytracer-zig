@@ -1,5 +1,6 @@
 const std = @import("std");
 const io = @import("std").io;
+const math = @import("std").math;
 
 const Vec3 = @import("vec.zig").Vec3;
 const Point3 = @import("vec.zig").Point3;
@@ -7,7 +8,16 @@ const Ray = @import("ray.zig").Ray;
 const color = @import("color.zig");
 const Color = color.Color;
 
-fn rayColor(ray: Ray) Color {
+const SphereList = @import("sphere.zig").SphereList;
+const Sphere = @import("sphere.zig").Sphere;
+const HitRecord = @import("sphere.zig").HitRecord;
+
+fn rayColor(ray: Ray, world: SphereList) Color {
+    var rec: HitRecord = undefined;
+    if (world.hit(ray, 0, math.inf(f64), &rec)) {
+        return rec.normal.add(Color.ones()).smul(0.5);
+    }
+
     const unit_dir: Vec3 = Vec3.unit(ray.dir);
     const a: f64 = 0.5 * (unit_dir.y + 1.0);
 
@@ -25,6 +35,15 @@ pub fn main() !void {
         height = if (height < 1) 1 else height;
         break :blk height;
     };
+
+    // World
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == std.heap.Check.ok);
+
+    var world: SphereList = SphereList.init(gpa.allocator());
+    defer world.deinit();
+    try world.add(Sphere.init(Point3.init(0, 0, -1), 0.5));
+    try world.add(Sphere.init(Point3.init(0, -100.5, -1), 100));
 
     // compute viewport width
     const focal_length: f64 = 1.0;
@@ -66,7 +85,7 @@ pub fn main() !void {
             const ray_direction = pixel_center.sub(camera_center);
             const r: Ray = Ray.init(camera_center, ray_direction);
 
-            const pixel_color = rayColor(r);
+            const pixel_color = rayColor(r, world);
             try color.writeColor(stdout, pixel_color);
         }
     }
