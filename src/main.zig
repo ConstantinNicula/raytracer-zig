@@ -1,95 +1,25 @@
 const std = @import("std");
 const io = @import("std").io;
-const math = @import("std").math;
-
-const Vec3 = @import("vec.zig").Vec3;
-const Point3 = @import("vec.zig").Point3;
-const Ray = @import("ray.zig").Ray;
-const color = @import("color.zig");
-const Color = color.Color;
 
 const SphereList = @import("sphere.zig").SphereList;
 const Sphere = @import("sphere.zig").Sphere;
-const HitRecord = @import("sphere.zig").HitRecord;
-
-fn rayColor(ray: Ray, world: SphereList) Color {
-    var rec: HitRecord = undefined;
-    if (world.hit(ray, 0, math.inf(f64), &rec)) {
-        return rec.normal.add(Color.ones()).smul(0.5);
-    }
-
-    const unit_dir: Vec3 = Vec3.unit(ray.dir);
-    const a: f64 = 0.5 * (unit_dir.y + 1.0);
-
-    var ret = Color.ones().smul(1.0 - a);
-    ret = ret.add(Color.init(0.5, 0.7, 1.0).smul(a));
-    return ret;
-}
+const Point3 = @import("vec.zig").Point3;
+const Camera = @import("camera.zig").Camera;
 
 pub fn main() !void {
-    const aspect_ratio: f64 = 16.0 / 9.0;
-    // compute image widht and heigh based on aspect ratio
-    const image_width: u32 = 400;
-    const image_height: u32 = blk: {
-        var height: u32 = @intFromFloat(image_width / aspect_ratio);
-        height = if (height < 1) 1 else height;
-        break :blk height;
-    };
-
-    // World
+    // setup heap allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == std.heap.Check.ok);
 
+    // configure world
     var world: SphereList = SphereList.init(gpa.allocator());
     defer world.deinit();
     try world.add(Sphere.init(Point3.init(0, 0, -1), 0.5));
     try world.add(Sphere.init(Point3.init(0, -100.5, -1), 100));
 
-    // compute viewport width
-    const focal_length: f64 = 1.0;
-    const viewport_height: f64 = 2.0;
-    const viewport_width: f64 = viewport_height * (@as(f64, @floatFromInt(image_width)) /
-        @as(f64, @floatFromInt(image_height)));
-    const camera_center: Point3 = Point3.zeros();
-
-    // compute uv vectors
-    const viewport_u: Vec3 = Vec3.init(viewport_width, 0, 0);
-    const viewport_v: Vec3 = Vec3.init(0, -viewport_height, 0);
-
-    // compute delta uv
-    const pixel_delta_u = viewport_u.sdiv(@floatFromInt(image_width));
-    const pixel_delta_v = viewport_v.sdiv(@floatFromInt(image_height));
-
-    // compute location of upper left pixel
-    const viewport_upper_left: Vec3 = camera_center
-        .sub(Vec3.init(0, 0, focal_length))
-        .sub(viewport_u.sdiv(2.0))
-        .sub(viewport_v.sdiv(2.0));
-    const pixel00_loc = viewport_upper_left.add(pixel_delta_u.add(pixel_delta_v).sdiv(2.0));
-
-    // configured buffered writer
-    var buf = std.io.bufferedWriter(std.io.getStdOut().writer());
-    var stdout = buf.writer();
-
-    try stdout.print("P3\n {} {}\n255\n", .{ image_width, image_height });
-
-    var j: u32 = 0;
-    while (j < image_height) : (j += 1) {
-        std.debug.print("\rScanlines remaining: {} ", .{image_height - j});
-        var i: u32 = 0;
-        while (i < image_width) : (i += 1) {
-            var pixel_center = pixel00_loc
-                .add(pixel_delta_u.smul(@floatFromInt(i)))
-                .add(pixel_delta_v.smul(@floatFromInt(j)));
-
-            const ray_direction = pixel_center.sub(camera_center);
-            const r: Ray = Ray.init(camera_center, ray_direction);
-
-            const pixel_color = rayColor(r, world);
-            try color.writeColor(stdout, pixel_color);
-        }
-    }
-    try buf.flush();
-
-    std.debug.print("\rDone.                    \n", .{});
+    // camera
+    var cam: Camera = undefined;
+    cam.aspect_ratio = 16.0 / 9.0;
+    cam.image_width = 400;
+    try cam.render(world);
 }

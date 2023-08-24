@@ -5,6 +5,7 @@ const Vec3 = @import("vec.zig").Vec3;
 const std = @import("std");
 const math = std.math;
 const ArrayList = std.ArrayList;
+const Interval = @import("interval.zig").Interval;
 
 pub const HitRecord = struct {
     p: Point3,
@@ -37,7 +38,7 @@ pub const Sphere = struct {
         };
     }
 
-    pub fn hit(self: Sphere, ray: Ray, ray_tmin: f64, ray_tmax: f64, rec: *HitRecord) bool {
+    pub fn hit(self: Sphere, ray: Ray, ray_t: Interval, rec: *HitRecord) bool {
         const oc: Vec3 = ray.origin.sub(self.center);
         const a: f64 = Vec3.dot(ray.dir, ray.dir);
         const half_b: f64 = Vec3.dot(oc, ray.dir);
@@ -52,9 +53,9 @@ pub const Sphere = struct {
 
         // Find the nearest root that lies in the acceptable range.
         var root: f64 = (-half_b - sqrtd) / a;
-        if ((root <= ray_tmin) or (root >= ray_tmax)) {
+        if (!ray_t.surrounds(root)) {
             root = (-half_b + sqrtd) / a;
-            if ((root <= ray_tmin) or (root >= ray_tmax)) {
+            if (!ray_t.surrounds(root)) {
                 return false;
             }
         }
@@ -89,13 +90,13 @@ pub const SphereList = struct {
         try self.objects.append(object);
     }
 
-    pub fn hit(self: SphereList, ray: Ray, ray_tmin: f64, ray_tmax: f64, rec: *HitRecord) bool {
+    pub fn hit(self: SphereList, ray: Ray, ray_t: Interval, rec: *HitRecord) bool {
         var temp_rec: HitRecord = undefined;
         var hit_anything: bool = false;
-        var closest_so_far: f64 = ray_tmax;
+        var closest_so_far: f64 = ray_t.max;
 
         for (self.objects.items) |object| {
-            if (object.hit(ray, ray_tmin, closest_so_far, &temp_rec)) {
+            if (object.hit(ray, Interval.init(ray_t.min, closest_so_far), &temp_rec)) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
                 rec.* = temp_rec;
