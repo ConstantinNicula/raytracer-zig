@@ -12,9 +12,12 @@ const Interval = @import("interval.zig").Interval;
 const std = @import("std");
 const math = std.math;
 
+const random = @import("utility.zig").random;
+
 pub const Camera = struct {
     aspect_ratio: f64 = 1.0,
     image_width: u32 = 100,
+    samples_per_pixel: u32 = 1,
 
     image_height: u32, // image height
     center: Point3,
@@ -66,19 +69,36 @@ pub const Camera = struct {
             std.debug.print("\rScanlines remaining: {} ", .{self.image_height - j});
             var i: u32 = 0;
             while (i < self.image_width) : (i += 1) {
-                var pixel_center = self.pixel00_loc
-                    .add(self.pixel_delta_u.smul(@floatFromInt(i)))
-                    .add(self.pixel_delta_v.smul(@floatFromInt(j)));
-
-                const ray_direction = pixel_center.sub(self.center);
-                const r: Ray = Ray.init(self.center, ray_direction);
-
-                const pixel_color = rayColor(r, world);
-                try color.writeColor(stdout, pixel_color);
+                var pixel_color: Color = Color.zeros();
+                var sample: u32 = 0;
+                while (sample < self.samples_per_pixel) : (sample += 1) {
+                    const r: Ray = self.getRay(i, j);
+                    pixel_color = pixel_color.add(rayColor(r, world));
+                }
+                try color.writeColor(stdout, pixel_color, self.samples_per_pixel);
             }
         }
         try buf.flush();
         std.debug.print("\rDone.                    \n", .{});
+    }
+
+    fn getRay(self: Camera, i: u32, j: u32) Ray {
+        // Get a randomly smapled camera ray for the pixel at location i, j.
+        const pixel_center = self.pixel00_loc
+            .add(self.pixel_delta_u.smul(@floatFromInt(i)))
+            .add(self.pixel_delta_v.smul(@floatFromInt(j)));
+        const pixel_sample = pixel_center.add(self.pixelSampleSquare());
+
+        const ray_origin = self.center;
+        const ray_direction = pixel_sample.sub(ray_origin);
+        return Ray.init(ray_origin, ray_direction);
+    }
+
+    fn pixelSampleSquare(self: Camera) Vec3 {
+        // Returns a random point in the square surrounding a pixel at the origin.
+        const px: f64 = -0.5 + random();
+        const py: f64 = -0.5 + random();
+        return Vec3.add(self.pixel_delta_u.smul(px), self.pixel_delta_v.smul(py));
     }
 
     fn rayColor(ray: Ray, world: SphereList) Color {

@@ -1,12 +1,24 @@
 const std = @import("std");
 const Vec3 = @import("vec.zig").Vec3;
-
+const Interval = @import("interval.zig").Interval;
 pub const Color = Vec3;
 
-pub fn writeColor(out: anytype, pixel_color: Color) !void {
+pub fn writeColor(out: anytype, pixel_color: Color, samples_per_pixel: u32) !void {
+    var r = pixel_color.x;
+    var g = pixel_color.y;
+    var b = pixel_color.z;
+
+    // Divide the color by the number of samples.
+    const scale = 1.0 / @as(f64, @floatFromInt(samples_per_pixel));
+    r *= scale;
+    g *= scale;
+    b *= scale;
+
+    // Write the translated [0, 255] value of each color component
+    const intensity: Interval = Interval.init(0.0, 0.999);
     try out.print("{} {} {}\n", .{
-        @as(i32, @intFromFloat(255.999 * pixel_color.x)),
-        @as(i32, @intFromFloat(255.999 * pixel_color.y)),
-        @as(i32, @intFromFloat(255.999 * pixel_color.z)),
+        @as(i32, @intFromFloat(256 * intensity.clamp(r))),
+        @as(i32, @intFromFloat(256 * intensity.clamp(g))),
+        @as(i32, @intFromFloat(256 * intensity.clamp(b))),
     });
 }
