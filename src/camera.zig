@@ -111,8 +111,12 @@ pub const Camera = struct {
         }
 
         if (world.hit(ray, Interval.init(0.001, math.inf(f64)), &rec)) {
-            const direction: Vec3 = Vec3.add(rec.normal, Vec3.randomUnitVector());
-            return rayColor(Ray.init(rec.p, direction), depth - 1, world).smul(0.5);
+            var scattered: Ray = undefined;
+            var attenuation: Color = undefined;
+            if (rec.mat.scatter(ray, rec, &attenuation, &scattered)) {
+                return Vec3.vmul(attenuation, rayColor(scattered, depth - 1, world));
+            }
+            return Color.init(0, 0, 0);
         }
 
         const unit_dir: Vec3 = Vec3.unit(ray.dir);

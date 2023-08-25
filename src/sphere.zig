@@ -5,21 +5,16 @@ const Vec3 = @import("vec.zig").Vec3;
 const std = @import("std");
 const math = std.math;
 const ArrayList = std.ArrayList;
+
 const Interval = @import("interval.zig").Interval;
+const Material = @import("material.zig").Material;
 
 pub const HitRecord = struct {
     p: Point3,
     normal: Vec3,
     t: f64,
     front_face: bool,
-
-    pub fn init(p: Point3, normal: Vec3, t: f64) HitRecord {
-        return HitRecord{
-            .p = p,
-            .normal = normal,
-            .t = t,
-        };
-    }
+    mat: *const Material,
 
     pub fn setFaceNormal(self: *HitRecord, ray: Ray, outward_normal: Vec3) void {
         self.front_face = Vec3.dot(ray.dir, outward_normal) < 0;
@@ -30,11 +25,13 @@ pub const HitRecord = struct {
 pub const Sphere = struct {
     center: Point3,
     radius: f64,
+    mat: *const Material,
 
-    pub fn init(center: Point3, radius: f64) Sphere {
+    pub fn init(center: Point3, radius: f64, mat: *const Material) Sphere {
         return Sphere{
             .center = center,
             .radius = radius,
+            .mat = mat,
         };
     }
 
@@ -64,6 +61,7 @@ pub const Sphere = struct {
         rec.p = ray.at(rec.t);
         const outward_normal: Vec3 = rec.p.sub(self.center).sdiv(self.radius);
         rec.setFaceNormal(ray, outward_normal);
+        rec.mat = self.mat;
 
         return true;
     }

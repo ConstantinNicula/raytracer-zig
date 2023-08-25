@@ -2,6 +2,9 @@ const math = @import("std").math;
 const rand = @import("utility.zig");
 const std = @import("std");
 
+const assert = @import("std").debug.assert;
+const eps: f64 = 1e-8;
+
 pub const Vec3 = struct {
     x: f64,
     y: f64,
@@ -65,6 +68,12 @@ pub const Vec3 = struct {
 
     pub fn sqlen(self: Vec3) f64 {
         return self.x * self.x + self.y * self.y + self.z * self.z;
+    }
+
+    pub fn nearZero(self: Vec3) bool {
+        return (math.fabs(self.x) < eps and
+            math.fabs(self.y) < eps and
+            math.fabs(self.z) < eps);
     }
 
     pub fn flip(self: Vec3) Vec3 {
@@ -137,12 +146,13 @@ pub const Vec3 = struct {
 
         return Vec3.add(v1.smul(1 - t_clamped), v2.smul(t_clamped));
     }
+
+    pub fn reflect(v: Vec3, n: Vec3) Vec3 {
+        return Vec3.sub(v, n.smul(2 * Vec3.dot(v, n)));
+    }
 };
 
 pub const Point3 = Vec3;
-
-const assert = @import("std").debug.assert;
-const eps: f64 = 1e-6;
 
 pub fn assertEq(exp: Vec3, val: Vec3) void {
     assert(math.fabs(exp.x - val.x) < eps);
