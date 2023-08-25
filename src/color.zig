@@ -3,6 +3,10 @@ const Vec3 = @import("vec.zig").Vec3;
 const Interval = @import("interval.zig").Interval;
 pub const Color = Vec3;
 
+fn linearToGamma(linear_component: f64) f64 {
+    return std.math.sqrt(linear_component);
+}
+
 pub fn writeColor(out: anytype, pixel_color: Color, samples_per_pixel: u32) !void {
     var r = pixel_color.x;
     var g = pixel_color.y;
@@ -13,6 +17,11 @@ pub fn writeColor(out: anytype, pixel_color: Color, samples_per_pixel: u32) !voi
     r *= scale;
     g *= scale;
     b *= scale;
+
+    // Apply the linera to gamma transform.
+    r = linearToGamma(r);
+    g = linearToGamma(g);
+    b = linearToGamma(b);
 
     // Write the translated [0, 255] value of each color component
     const intensity: Interval = Interval.init(0.0, 0.999);

@@ -17,7 +17,8 @@ const random = @import("utility.zig").random;
 pub const Camera = struct {
     aspect_ratio: f64 = 1.0,
     image_width: u32 = 100,
-    samples_per_pixel: u32 = 1,
+    samples_per_pixel: u32 = 10,
+    max_depth: u32 = 10,
 
     image_height: u32, // image height
     center: Point3,
@@ -73,7 +74,7 @@ pub const Camera = struct {
                 var sample: u32 = 0;
                 while (sample < self.samples_per_pixel) : (sample += 1) {
                     const r: Ray = self.getRay(i, j);
-                    pixel_color = pixel_color.add(rayColor(r, world));
+                    pixel_color = pixel_color.add(rayColor(r, self.max_depth, world));
                 }
                 try color.writeColor(stdout, pixel_color, self.samples_per_pixel);
             }
@@ -101,17 +102,21 @@ pub const Camera = struct {
         return Vec3.add(self.pixel_delta_u.smul(px), self.pixel_delta_v.smul(py));
     }
 
-    fn rayColor(ray: Ray, world: SphereList) Color {
+    fn rayColor(ray: Ray, depth: u32, world: SphereList) Color {
         var rec: HitRecord = undefined;
-        if (world.hit(ray, Interval.init(0, math.inf(f64)), &rec)) {
-            return rec.normal.add(Color.ones()).smul(0.5);
+
+        // If we've exceeded the ray bounce limit, no more light is gathered.
+        if (depth == 0) {
+            return Color.zeros();
+        }
+
+        if (world.hit(ray, Interval.init(0.001, math.inf(f64)), &rec)) {
+            const direction: Vec3 = Vec3.add(rec.normal, Vec3.randomUnitVector());
+            return rayColor(Ray.init(rec.p, direction), depth - 1, world).smul(0.5);
         }
 
         const unit_dir: Vec3 = Vec3.unit(ray.dir);
         const a: f64 = 0.5 * (unit_dir.y + 1.0);
-
-        var ret = Color.ones().smul(1.0 - a);
-        ret = ret.add(Color.init(0.5, 0.7, 1.0).smul(a));
-        return ret;
+        return Color.lerp(Color.init(1.0, 1.0, 1.0), Color.init(0.5, 0.7, 1.0), a);
     }
 };

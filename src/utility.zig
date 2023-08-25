@@ -1,6 +1,6 @@
 const std = @import("std");
 
-var prng = std.rand.DefaultPrng.init(42);
+var prng = std.rand.DefaultPrng.init(39916801);
 var random_gen = prng.random();
 
 pub fn random() f64 {

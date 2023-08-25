@@ -1,4 +1,6 @@
 const math = @import("std").math;
+const rand = @import("utility.zig");
+const std = @import("std");
 
 pub const Vec3 = struct {
     x: f64,
@@ -65,6 +67,14 @@ pub const Vec3 = struct {
         return self.x * self.x + self.y * self.y + self.z * self.z;
     }
 
+    pub fn flip(self: Vec3) Vec3 {
+        return Vec3{
+            .x = -self.x,
+            .y = -self.y,
+            .z = -self.z,
+        };
+    }
+
     pub fn dot(u: Vec3, v: Vec3) f64 {
         return u.x * v.x + u.y * v.y + u.z * v.z;
     }
@@ -79,6 +89,53 @@ pub const Vec3 = struct {
 
     pub fn unit(v: Vec3) Vec3 {
         return v.sdiv(v.len());
+    }
+
+    pub fn random() Vec3 {
+        return Vec3{
+            .x = rand.random(),
+            .y = rand.random(),
+            .z = rand.random(),
+        };
+    }
+
+    pub fn randomRange(min: f64, max: f64) Vec3 {
+        return Vec3{
+            .x = rand.rangedRandom(min, max),
+            .y = rand.rangedRandom(min, max),
+            .z = rand.rangedRandom(min, max),
+        };
+    }
+
+    pub fn randomInUnitSphere() Vec3 {
+        while (true) {
+            const p: Vec3 = Vec3.randomRange(-1.0, 1.0);
+            const l = p.sqlen();
+            if (math.fabs(l) > eps and l < 1.0) {
+                return p;
+            }
+        }
+    }
+
+    pub fn randomUnitVector() Vec3 {
+        return Vec3.unit(Vec3.randomInUnitSphere());
+    }
+
+    pub fn randomOnHemisphere(normal: Vec3) Vec3 {
+        const on_unit_sphere: Vec3 = Vec3.randomUnitVector();
+        if (Vec3.dot(normal, on_unit_sphere) < 0.0) {
+            return on_unit_sphere.flip();
+        } else {
+            return on_unit_sphere;
+        }
+    }
+
+    pub fn lerp(v1: Vec3, v2: Vec3, t: f64) Vec3 {
+        var t_clamped = t;
+        if (t < 0.0) t_clamped = 0.0;
+        if (t > 1.0) t_clamped = 1.0;
+
+        return Vec3.add(v1.smul(1 - t_clamped), v2.smul(t_clamped));
     }
 };
 
@@ -143,6 +200,11 @@ test "vector sqlen" {
     assert(math.fabs(len - 14.0) < eps);
 }
 
+test "vector flip" {
+    var v: Vec3 = Vec3.init(1.0, 2.0, 3.0);
+    assertEq(Vec3.init(-1.0, -2.0, -3.0), v.flip());
+}
+
 test "vector dot" {
     var v1: Vec3 = Vec3.init(4.0, 1.0, 5.0);
     var v2: Vec3 = Vec3.init(2.3, 1.6, 2.19);
@@ -169,4 +231,20 @@ test "sanity check" {
     var p = Point3.zeros();
     var v = Vec3.zeros();
     assert(@TypeOf(p) == @TypeOf(v));
+}
+
+test "random unit vec" {
+    var p = Vec3.randomUnitVector();
+    assert(math.fabs(p.len() - 1.0) < eps);
+}
+
+test "random unit vec on hemisphere" {
+    var iter: u32 = 0;
+
+    var n = Vec3.randomUnitVector();
+    while (iter < 100) : (iter += 1) {
+        var p = Vec3.randomOnHemisphere(n);
+        //std.debug.print("{}, {}, {}, \n", .{ p.x, p.y, p.z });
+        assert(Vec3.dot(n, p) > 0.0);
+    }
 }
