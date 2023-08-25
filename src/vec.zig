@@ -150,6 +150,13 @@ pub const Vec3 = struct {
     pub fn reflect(v: Vec3, n: Vec3) Vec3 {
         return Vec3.sub(v, n.smul(2 * Vec3.dot(v, n)));
     }
+
+    pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) Vec3 {
+        const cos_theta: f64 = @min(-Vec3.dot(uv, n), 1.0);
+        const r_out_perp: Vec3 = Vec3.add(uv, n.smul(cos_theta)).smul(etai_over_etat);
+        const r_out_parallel: Vec3 = n.smul(-math.sqrt(math.fabs(1.0 - r_out_perp.sqlen())));
+        return Vec3.add(r_out_perp, r_out_parallel);
+    }
 };
 
 pub const Point3 = Vec3;

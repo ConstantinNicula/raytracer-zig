@@ -7,6 +7,7 @@ const Point3 = @import("vec.zig").Point3;
 const Camera = @import("camera.zig").Camera;
 const Material = @import("material.zig").Material;
 const Lambertian = @import("material.zig").Lambertian;
+const Dielectric = @import("material.zig").Dielectric;
 const Metal = @import("material.zig").Metal;
 const Color = @import("color.zig").Color;
 
@@ -21,13 +22,15 @@ pub fn main() !void {
 
     // create materials
     const material_ground: Material = Material{ .lambertian = Lambertian.init(Color.init(0.8, 0.8, 0.0)) };
-    const material_center: Material = Material{ .lambertian = Lambertian.init(Color.init(0.7, 0.3, 0.3)) };
-    const material_left: Material = Material{ .metal = Metal.init(Color.init(0.8, 0.8, 0.8)) };
-    const material_right: Material = Material{ .metal = Metal.init(Color.init(0.8, 0.6, 0.2)) };
+    const material_center: Material = Material{ .lambertian = Lambertian.init(Color.init(0.1, 0.2, 0.5)) };
+    //const material_left: Material = Material{ .metal = Metal.init(Color.init(0.8, 0.8, 0.8), 0.3) };
+    const material_right: Material = Material{ .metal = Metal.init(Color.init(0.8, 0.6, 0.2), 0.0) };
+    const material_dielectric: Material = Material{ .dielectric = Dielectric.init(1.5) };
 
     try world.add(Sphere.init(Point3.init(0, -100.5, -1), 100, &material_ground));
     try world.add(Sphere.init(Point3.init(0, 0, -1), 0.5, &material_center));
-    try world.add(Sphere.init(Point3.init(-1, 0, -1), 0.5, &material_left));
+    try world.add(Sphere.init(Point3.init(-1, 0, -1), 0.5, &material_dielectric));
+    try world.add(Sphere.init(Point3.init(-1, 0, -1), -0.4, &material_dielectric));
     try world.add(Sphere.init(Point3.init(1, 0, -1), 0.5, &material_right));
 
     // camera
