@@ -126,6 +126,16 @@ pub const Vec3 = struct {
         }
     }
 
+    pub fn randomInUnitDisk() Vec3 {
+        while (true) {
+            const p: Vec3 = Vec3.init(rand.rangedRandom(-1, 1), rand.rangedRandom(-1, 1), 0);
+            const l = p.sqlen();
+            if (math.fabs(l) > eps and l < 1.0) {
+                return p;
+            }
+        }
+    }
+
     pub fn randomUnitVector() Vec3 {
         return Vec3.unit(Vec3.randomInUnitSphere());
     }

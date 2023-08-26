@@ -19,6 +19,12 @@ pub const Camera = struct {
     image_width: u32 = 100,
     samples_per_pixel: u32 = 10,
     max_depth: u32 = 10,
+    vfov: f64 = 90,
+    lookFrom: Point3 = Point3.init(0, 0, -1),
+    lookAt: Point3 = Point3.init(0, 0, 0),
+    vup: Vec3 = Vec3.init(0, 1, 0),
+    defocus_angle: f64 = 0, // Variation angle of rays through each pixel
+    focus_dist: f64 = 10,
 
     image_height: u32, // image height
     center: Point3,
@@ -26,22 +32,36 @@ pub const Camera = struct {
     pixel_delta_u: Vec3,
     pixel_delta_v: Vec3,
 
+    // Camera frame basis vectors
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
+
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
+
     pub fn initialize(self: *Camera) void {
         // compute image widht and heigh based on aspect ratio
         self.image_height = @intFromFloat(@as(f64, @floatFromInt(self.image_width)) / self.aspect_ratio);
         self.image_height = if (self.image_height < 1) 1 else self.image_height;
 
-        self.center = Point3.zeros();
+        self.center = self.lookFrom;
 
         // compute viewport width
-        const focal_length: f64 = 1.0;
-        const viewport_height: f64 = 2.0;
+        const tetha: f64 = math.degreesToRadians(f64, self.vfov);
+        const h = math.tan(tetha / 2.0);
+        const viewport_height: f64 = 2 * self.focus_dist * h;
         const viewport_width: f64 = viewport_height * (@as(f64, @floatFromInt(self.image_width)) /
             @as(f64, @floatFromInt(self.image_height)));
 
+        // Calculate the u, v, w unit basis vectors fro the camera coordinate frame.
+        self.w = Vec3.unit(self.lookFrom.sub(self.lookAt));
+        self.u = Vec3.unit(Vec3.cross(self.vup, self.w));
+        self.v = Vec3.cross(self.w, self.u);
+
         // compute uv vectors
-        const viewport_u: Vec3 = Vec3.init(viewport_width, 0, 0);
-        const viewport_v: Vec3 = Vec3.init(0, -viewport_height, 0);
+        const viewport_u: Vec3 = self.u.smul(viewport_width);
+        const viewport_v: Vec3 = self.v.smul(-viewport_height);
 
         // compute delta uv
         self.pixel_delta_u = viewport_u.sdiv(@floatFromInt(self.image_width));
@@ -49,11 +69,16 @@ pub const Camera = struct {
 
         // compute location of upper left pixel
         const viewport_upper_left: Vec3 = self.center
-            .sub(Vec3.init(0, 0, focal_length))
+            .sub(self.w.smul(self.focus_dist))
             .sub(viewport_u.sdiv(2.0))
             .sub(viewport_v.sdiv(2.0));
 
         self.pixel00_loc = viewport_upper_left.add(self.pixel_delta_u.add(self.pixel_delta_v).sdiv(2.0));
+
+        // calculate the camera defocus disk basis vectors.
+        const defocus_radius = self.focus_dist * math.tan(math.degreesToRadians(f64, self.defocus_angle / 2.0));
+        self.defocus_disk_u = self.u.smul(defocus_radius);
+        self.defocus_disk_v = self.v.smul(defocus_radius);
     }
 
     pub fn render(self: *Camera, world: SphereList) !void {
@@ -90,7 +115,7 @@ pub const Camera = struct {
             .add(self.pixel_delta_v.smul(@floatFromInt(j)));
         const pixel_sample = pixel_center.add(self.pixelSampleSquare());
 
-        const ray_origin = self.center;
+        const ray_origin = if (self.defocus_angle <= 0) self.center else self.pixelDefocusDiskSample();
         const ray_direction = pixel_sample.sub(ray_origin);
         return Ray.init(ray_origin, ray_direction);
     }
@@ -100,6 +125,14 @@ pub const Camera = struct {
         const px: f64 = -0.5 + random();
         const py: f64 = -0.5 + random();
         return Vec3.add(self.pixel_delta_u.smul(px), self.pixel_delta_v.smul(py));
+    }
+
+    fn pixelDefocusDiskSample(self: Camera) Vec3 {
+        // returns a point in the camera defocus disk.
+        const p: Vec3 = Vec3.randomInUnitDisk();
+        return self.center
+            .add(self.defocus_disk_u.smul(p.x))
+            .add(self.defocus_disk_v.smul(p.y));
     }
 
     fn rayColor(ray: Ray, depth: u32, world: SphereList) Color {

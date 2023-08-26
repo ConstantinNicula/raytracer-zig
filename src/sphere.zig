@@ -25,9 +25,9 @@ pub const HitRecord = struct {
 pub const Sphere = struct {
     center: Point3,
     radius: f64,
-    mat: *const Material,
+    mat: Material,
 
-    pub fn init(center: Point3, radius: f64, mat: *const Material) Sphere {
+    pub fn init(center: Point3, radius: f64, mat: Material) Sphere {
         return Sphere{
             .center = center,
             .radius = radius,
@@ -35,7 +35,7 @@ pub const Sphere = struct {
         };
     }
 
-    pub fn hit(self: Sphere, ray: Ray, ray_t: Interval, rec: *HitRecord) bool {
+    pub fn hit(self: *const Sphere, ray: Ray, ray_t: Interval, rec: *HitRecord) bool {
         const oc: Vec3 = ray.origin.sub(self.center);
         const a: f64 = Vec3.dot(ray.dir, ray.dir);
         const half_b: f64 = Vec3.dot(oc, ray.dir);
@@ -61,7 +61,7 @@ pub const Sphere = struct {
         rec.p = ray.at(rec.t);
         const outward_normal: Vec3 = rec.p.sub(self.center).sdiv(self.radius);
         rec.setFaceNormal(ray, outward_normal);
-        rec.mat = self.mat;
+        rec.mat = &self.mat;
 
         return true;
     }
@@ -93,7 +93,7 @@ pub const SphereList = struct {
         var hit_anything: bool = false;
         var closest_so_far: f64 = ray_t.max;
 
-        for (self.objects.items) |object| {
+        for (self.objects.items) |*object| {
             if (object.hit(ray, Interval.init(ray_t.min, closest_so_far), &temp_rec)) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
