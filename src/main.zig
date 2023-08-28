@@ -13,6 +13,7 @@ const Color = @import("color.zig").Color;
 const Vec3 = @import("vec.zig").Vec3;
 
 const utils = @import("utility.zig");
+const raylib = @import("raylib");
 
 pub fn main() !void {
     // setup heap allocator
@@ -77,6 +78,7 @@ pub fn main() !void {
     cam.vup = Vec3.init(0, 1, 0);
     cam.defocus_angle = 0.6;
     cam.focus_dist = 10.0;
+    cam.initialize();
 
-    try cam.render(world);
+    try cam.renderToScreen(&world, gpa.allocator());
 }

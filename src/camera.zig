@@ -12,6 +12,7 @@ const Interval = @import("interval.zig").Interval;
 const std = @import("std");
 const math = std.math;
 
+const raylib = @import("raylib");
 const random = @import("utility.zig").random;
 
 pub const Camera = struct {
@@ -81,7 +82,7 @@ pub const Camera = struct {
         self.defocus_disk_v = self.v.smul(defocus_radius);
     }
 
-    pub fn render(self: *Camera, world: SphereList) !void {
+    pub fn renderToFile(self: *Camera, world: *const SphereList) !void {
         self.initialize();
 
         // configured buffered writer
@@ -101,11 +102,145 @@ pub const Camera = struct {
                     const r: Ray = self.getRay(i, j);
                     pixel_color = pixel_color.add(rayColor(r, self.max_depth, world));
                 }
-                try color.writeColor(stdout, pixel_color, self.samples_per_pixel);
+                try color.writeColorToFile(stdout, pixel_color, self.samples_per_pixel);
             }
         }
         try buf.flush();
         std.debug.print("\rDone.                    \n", .{});
+    }
+
+    const WorkerContext = struct {
+        camera: *const Camera,
+        image: *raylib.Image,
+        world: *const SphereList,
+        queue: *std.atomic.Queue(u32),
+        mutex: std.Thread.Mutex,
+        allocator: std.mem.Allocator,
+        should_stop: bool,
+    };
+
+    pub fn renderToScreen(self: *Camera, world: *const SphereList, allocator: std.mem.Allocator) !void {
+        // setup camera parameters
+        self.initialize();
+
+        const iwidth: i32 = @intCast(self.image_width);
+        const iheight: i21 = @intCast(self.image_height);
+
+        // create render window
+        raylib.SetConfigFlags(raylib.ConfigFlags{ .FLAG_WINDOW_RESIZABLE = false });
+        raylib.InitWindow(iwidth, iheight, "ZIG WE Raytracer");
+        defer raylib.CloseWindow();
+
+        // create image & texture
+        var image: raylib.Image = raylib.GenImageColor(iwidth, iheight, raylib.Color{});
+        defer raylib.UnloadImage(image);
+        var texture: raylib.Texture2D = raylib.LoadTextureFromImage(image);
+        defer raylib.UnloadTexture(texture);
+
+        var work_queue = std.atomic.Queue(u32).init();
+        defer {
+            while (work_queue.get()) |work_node| {
+                allocator.destroy(work_node);
+            }
+        }
+        const WorkerQueueNode = std.atomic.Queue(u32).Node;
+
+        var j: u32 = 0;
+        while (j < self.image_height) : (j += 1) {
+            const node: *WorkerQueueNode = try allocator.create(WorkerQueueNode);
+            node.* = .{
+                .data = j,
+            };
+            work_queue.put(node);
+        }
+
+        var threads: std.ArrayList(std.Thread) = std.ArrayList(std.Thread).init(allocator);
+        defer threads.deinit();
+        var ctx: WorkerContext = WorkerContext{
+            .camera = self,
+            .image = &image,
+            .world = world,
+            .queue = &work_queue,
+            .mutex = std.Thread.Mutex{},
+            .allocator = allocator,
+            .should_stop = false,
+        };
+
+        var num_threads: usize = try std.Thread.getCpuCount();
+        var t: usize = 0;
+        while (t < num_threads) : (t += 1) {
+            const handle = try std.Thread.spawn(.{}, Camera.workerRenderRow, .{&ctx});
+            try threads.append(handle);
+        }
+
+        // enter main loop
+        while (!raylib.WindowShouldClose()) {
+            {
+                ctx.mutex.lock();
+                defer ctx.mutex.unlock();
+                // load texture to GPU after every row
+                raylib.UpdateTexture(texture, image.data);
+            }
+
+            // blit to screen
+            raylib.BeginDrawing();
+            raylib.DrawTexture(texture, 0, 0, raylib.RAYWHITE);
+            raylib.EndDrawing();
+        }
+
+        ctx.should_stop = true;
+        for (threads.items) |thread| {
+            thread.join();
+        }
+    }
+
+    pub fn workerRenderRow(ctx: *WorkerContext) !void {
+        var temp_image: raylib.Image = raylib.GenImageColor(@intCast(ctx.camera.image_width), 1, raylib.BLACK);
+        defer raylib.UnloadImage(temp_image);
+
+        while (ctx.queue.get()) |work_node| {
+            const row_id = work_node.data;
+            renderRow(ctx.camera, row_id, &temp_image, ctx.world);
+            // we finished rendering copy from scratch buffer to destination
+            {
+                ctx.mutex.lock();
+                defer ctx.mutex.unlock();
+
+                // source (0, 0) - (1, width)
+                const src_rec = raylib.Rectangle{
+                    .width = @as(f32, @floatFromInt(ctx.camera.image_width)),
+                    .height = 1,
+                    .y = 0,
+                    .x = 0,
+                };
+
+                // dest (0, row_id) - (1, width)
+                const dst_rec = raylib.Rectangle{
+                    .width = @as(f32, @floatFromInt(ctx.camera.image_width)),
+                    .height = 1,
+                    .y = @as(f32, @floatFromInt(row_id)),
+                    .x = 0,
+                };
+
+                raylib.ImageDraw(ctx.image, temp_image, src_rec, dst_rec, raylib.RAYWHITE);
+            }
+            ctx.allocator.destroy(work_node);
+
+            if (ctx.should_stop) break;
+        }
+    }
+
+    pub fn renderRow(camera: *const Camera, row_id: u32, image: *raylib.Image, world: *const SphereList) void {
+        var i: u32 = 0;
+        while (i < camera.image_width) : (i += 1) {
+            var pixel_color: Color = Color.zeros();
+            var sample: u32 = 0;
+            while (sample < camera.samples_per_pixel) : (sample += 1) {
+                const r: Ray = camera.getRay(i, row_id);
+                pixel_color = pixel_color.add(rayColor(r, camera.max_depth, world));
+            }
+            color.writeColorToRowImage(image, i, pixel_color, camera.samples_per_pixel);
+        }
     }
 
     fn getRay(self: Camera, i: u32, j: u32) Ray {
@@ -135,7 +270,7 @@ pub const Camera = struct {
             .add(self.defocus_disk_v.smul(p.y));
     }
 
-    fn rayColor(ray: Ray, depth: u32, world: SphereList) Color {
+    fn rayColor(ray: Ray, depth: u32, world: *const SphereList) Color {
         var rec: HitRecord = undefined;
 
         // If we've exceeded the ray bounce limit, no more light is gathered.

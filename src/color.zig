@@ -1,13 +1,17 @@
 const std = @import("std");
 const Vec3 = @import("vec.zig").Vec3;
 const Interval = @import("interval.zig").Interval;
+const raylib = @import("raylib");
+
 pub const Color = Vec3;
+
+const UColor = struct { r: u8, g: u8, b: u8 };
 
 fn linearToGamma(linear_component: f64) f64 {
     return std.math.sqrt(linear_component);
 }
 
-pub fn writeColor(out: anytype, pixel_color: Color, samples_per_pixel: u32) !void {
+fn convertColor(pixel_color: Color, samples_per_pixel: u32) UColor {
     var r = pixel_color.x;
     var g = pixel_color.y;
     var b = pixel_color.z;
@@ -25,9 +29,19 @@ pub fn writeColor(out: anytype, pixel_color: Color, samples_per_pixel: u32) !voi
 
     // Write the translated [0, 255] value of each color component
     const intensity: Interval = Interval.init(0.0, 0.999);
-    try out.print("{} {} {}\n", .{
-        @as(i32, @intFromFloat(256 * intensity.clamp(r))),
-        @as(i32, @intFromFloat(256 * intensity.clamp(g))),
-        @as(i32, @intFromFloat(256 * intensity.clamp(b))),
-    });
+    return UColor{
+        .r = @as(u8, @intFromFloat(256 * intensity.clamp(r))),
+        .g = @as(u8, @intFromFloat(256 * intensity.clamp(g))),
+        .b = @as(u8, @intFromFloat(256 * intensity.clamp(b))),
+    };
+}
+
+pub fn writeColorToFile(out: anytype, pixel_color: Color, samples_per_pixel: u32) !void {
+    const color: UColor = convertColor(pixel_color, samples_per_pixel);
+    try out.print("{} {} {}\n", .{ color.r, color.g, color.b });
+}
+
+pub fn writeColorToRowImage(image: *raylib.Image, x_pos: u32, pixel_color: Color, samples_per_pixel: u32) void {
+    const color: UColor = convertColor(pixel_color, samples_per_pixel);
+    raylib.ImageDrawPixel(image, @intCast(x_pos), 0, raylib.Color{ .r = color.r, .g = color.g, .b = color.b, .a = 255 });
 }
