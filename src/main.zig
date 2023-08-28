@@ -35,7 +35,7 @@ pub fn main() !void {
             const choose_mat = utils.random();
             const center: Point3 = Point3.init(@as(f64, @floatFromInt(a)) + utils.random() * 0.9, 0.2, @as(f64, @floatFromInt(b)) + utils.random() * 0.9);
 
-            if (center.sub(Point3.init(3, 0.2, 0)).len() > 0.9) {
+            if (center.sub(Point3.init(4, 0.2, 0)).len() > 0.9) {
                 if (choose_mat < 0.8) {
                     // diffuse
                     var albedo: Color = Color.random().vmul(Color.random());

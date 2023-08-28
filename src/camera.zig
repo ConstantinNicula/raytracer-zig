@@ -129,6 +129,7 @@ pub const Camera = struct {
         // create render window
         raylib.SetConfigFlags(raylib.ConfigFlags{ .FLAG_WINDOW_RESIZABLE = false });
         raylib.InitWindow(iwidth, iheight, "ZIG WE Raytracer");
+        raylib.SetTargetFPS(30);
         defer raylib.CloseWindow();
 
         // create image & texture
